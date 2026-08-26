@@ -4,16 +4,47 @@ import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
+// Fallback image
+const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
+
+// Helper to clean image URLs
+const getCleanImage = (imagePath) => {
+  if (!imagePath) return FALLBACK_IMAGE;
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    // If it's a Cloudinary URL, keep it
+    if (imagePath.includes('cloudinary') || imagePath.includes('unsplash')) {
+      return imagePath;
+    }
+    return FALLBACK_IMAGE;
+  }
+  // Any local path (/uploads/...) - use fallback
+  if (imagePath.startsWith('/uploads')) {
+    return FALLBACK_IMAGE;
+  }
+  return FALLBACK_IMAGE;
+};
+
 // GET all products
 router.get('/', async (req, res) => {
   try {
     console.log('📦 Fetching all products...');
     const products = await Product.find().sort({ createdAt: -1 });
-    console.log('✅ Products fetched:', products.length);
+    
+    // Clean images for all products
+    const cleanProducts = products.map(product => {
+      const obj = product.toObject();
+      return {
+        ...obj,
+        image: getCleanImage(obj.image),
+        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+      };
+    });
+    
+    console.log('✅ Products fetched:', cleanProducts.length);
     
     res.json({
       success: true,
-      products: products
+      products: cleanProducts
     });
   } catch (error) {
     console.error('❌ Error fetching products:', error);
@@ -39,11 +70,18 @@ router.get('/:id', async (req, res) => {
       });
     }
     
+    const obj = product.toObject();
+    const cleanProduct = {
+      ...obj,
+      image: getCleanImage(obj.image),
+      images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+    };
+    
     console.log('✅ Product found:', product.name);
     
     res.json({
       success: true,
-      product: product
+      product: cleanProduct
     });
   } catch (error) {
     console.error('❌ Error fetching product:', error);
@@ -90,9 +128,14 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     console.log('✅ Product created:', product._id);
     
+    const obj = product.toObject();
     res.status(201).json({
       success: true,
-      product: product,
+      product: {
+        ...obj,
+        image: getCleanImage(obj.image),
+        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+      },
       message: 'Product created successfully'
     });
   } catch (error) {
@@ -104,7 +147,7 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT - Update product with Cloudinary
+// PUT - Update product
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productId = req.params.id;
@@ -174,9 +217,14 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     
     console.log('✅ Product updated:', updatedProduct._id);
     
+    const obj = updatedProduct.toObject();
     res.json({
       success: true,
-      product: updatedProduct,
+      product: {
+        ...obj,
+        image: getCleanImage(obj.image),
+        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+      },
       message: 'Product updated successfully'
     });
   } catch (error) {
