@@ -4,7 +4,9 @@ import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
+// ============================================
 // GET all products
+// ============================================
 router.get('/', async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
@@ -21,7 +23,9 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product
+// ============================================
+// GET single product by ID
+// ============================================
 router.get('/:id', async (req, res) => {
   try {
     const product = await Product.findById(req.params.id);
@@ -44,11 +48,14 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST - Create product
+// ============================================
+// POST - Create new product
+// ============================================
 router.post('/', uploadProductImages, async (req, res) => {
   try {
     const productData = req.body;
     
+    // Parse sizes if sent as string
     if (typeof productData.sizes === 'string') {
       try {
         productData.sizes = JSON.parse(productData.sizes);
@@ -57,6 +64,7 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
+    // Get Cloudinary URLs if images uploaded
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         productData.image = req.files.image[0].path;
@@ -66,6 +74,7 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
+    // Parse numbers
     productData.price = Number(productData.price) || 0;
     productData.stock = Number(productData.stock) || 0;
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
@@ -88,11 +97,14 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
+// ============================================
 // PUT - Update product
+// ============================================
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productId = req.params.id;
     
+    // Check if product exists
     const existingProduct = await Product.findById(productId);
     if (!existingProduct) {
       return res.status(404).json({
@@ -104,12 +116,16 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     const productData = req.body;
     const updateData = {};
     
+    // String fields
     if (productData.name !== undefined) updateData.name = productData.name;
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
+    
+    // Number fields
     if (productData.price !== undefined) updateData.price = Number(productData.price);
     if (productData.stock !== undefined) updateData.stock = Number(productData.stock);
     
+    // Boolean fields
     if (productData.isNew !== undefined) {
       updateData.isNew = productData.isNew === 'true' || productData.isNew === true;
     }
@@ -117,6 +133,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       updateData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     }
     
+    // Sizes
     if (productData.sizes !== undefined) {
       if (typeof productData.sizes === 'string') {
         try {
@@ -129,6 +146,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
+    // Handle image uploads
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         updateData.image = req.files.image[0].path;
@@ -140,6 +158,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
+    // Update product
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       { $set: updateData },
@@ -160,7 +179,9 @@ router.put('/:id', uploadProductImages, async (req, res) => {
   }
 });
 
+// ============================================
 // DELETE product
+// ============================================
 router.delete('/:id', async (req, res) => {
   try {
     const product = await Product.findByIdAndDelete(req.params.id);
@@ -176,6 +197,68 @@ router.delete('/:id', async (req, res) => {
     });
   } catch (error) {
     console.error('Error deleting product:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// GET products by category
+// ============================================
+router.get('/category/:category', async (req, res) => {
+  try {
+    const { category } = req.params;
+    const products = await Product.find({ category: category });
+    res.json({
+      success: true,
+      products: products
+    });
+  } catch (error) {
+    console.error('Error fetching by category:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// GET new arrivals
+// ============================================
+router.get('/new-arrivals', async (req, res) => {
+  try {
+    const products = await Product.find({ isNew: true })
+      .sort({ createdAt: -1 })
+      .limit(10);
+    res.json({
+      success: true,
+      products: products
+    });
+  } catch (error) {
+    console.error('Error fetching new arrivals:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+});
+
+// ============================================
+// GET bestsellers
+// ============================================
+router.get('/bestsellers', async (req, res) => {
+  try {
+    const products = await Product.find({ isBestseller: true })
+      .sort({ createdAt: -1 })
+      .limit(10);
+    res.json({
+      success: true,
+      products: products
+    });
+  } catch (error) {
+    console.error('Error fetching bestsellers:', error);
     res.status(500).json({
       success: false,
       message: error.message
