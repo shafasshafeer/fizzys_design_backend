@@ -4,52 +4,16 @@ import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
-// Fallback image
-const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
-
-// Helper to clean image URLs
-const getCleanImage = (imagePath) => {
-  try {
-    if (!imagePath) return FALLBACK_IMAGE;
-    if (typeof imagePath !== 'string') return FALLBACK_IMAGE;
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
-    return FALLBACK_IMAGE;
-  } catch (error) {
-    console.error('Error in getCleanImage:', error);
-    return FALLBACK_IMAGE;
-  }
-};
-
 // GET all products
 router.get('/', async (req, res) => {
   try {
-    console.log('📦 Fetching all products...');
     const products = await Product.find().sort({ createdAt: -1 });
-    
-    const cleanProducts = products.map(product => {
-      try {
-        const obj = product.toObject ? product.toObject() : product;
-        return {
-          ...obj,
-          image: getCleanImage(obj.image),
-          images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
-        };
-      } catch (err) {
-        console.error('Error processing product:', err);
-        return product;
-      }
-    });
-    
-    console.log('✅ Products fetched:', cleanProducts.length);
-    
     res.json({
       success: true,
-      products: cleanProducts
+      products: products
     });
   } catch (error) {
-    console.error('❌ Error fetching products:', error);
+    console.error('Error fetching products:', error);
     res.status(500).json({ 
       success: false, 
       message: error.message 
@@ -57,62 +21,25 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product - with full debugging
+// GET single product
 router.get('/:id', async (req, res) => {
   try {
-    const productId = req.params.id;
-    console.log('📦 Fetching product ID:', productId);
-    
-    // Validate ID format
-    if (!productId || productId.length !== 24) {
-      console.log('❌ Invalid ID format:', productId);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product ID format'
-      });
-    }
-    
-    const product = await Product.findById(productId);
-    console.log('🔍 Product found:', product ? 'YES' : 'NO');
-    
+    const product = await Product.findById(req.params.id);
     if (!product) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
-    
-    console.log('✅ Product name:', product.name);
-    console.log('✅ Product image:', product.image);
-    
-    // Convert to object safely
-    let productObj;
-    try {
-      productObj = product.toObject ? product.toObject() : { ...product };
-    } catch (err) {
-      console.error('Error converting to object:', err);
-      productObj = { ...product._doc };
-    }
-    
-    const cleanProduct = {
-      ...productObj,
-      image: getCleanImage(productObj.image),
-      images: Array.isArray(productObj.images) ? productObj.images.map(img => getCleanImage(img)) : []
-    };
-    
-    console.log('✅ Sending clean product');
-    
     res.json({
       success: true,
-      product: cleanProduct
+      product: product
     });
   } catch (error) {
-    console.error('❌ Error in GET /:id:', error);
-    console.error('❌ Error message:', error.message);
-    console.error('❌ Error stack:', error.stack);
+    console.error('Error fetching product:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message
     });
   }
 });
@@ -120,8 +47,6 @@ router.get('/:id', async (req, res) => {
 // POST - Create product
 router.post('/', uploadProductImages, async (req, res) => {
   try {
-    console.log('📦 Creating product...');
-    
     const productData = req.body;
     
     if (typeof productData.sizes === 'string') {
@@ -135,11 +60,9 @@ router.post('/', uploadProductImages, async (req, res) => {
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         productData.image = req.files.image[0].path;
-        console.log('✅ Main image:', productData.image);
       }
       if (req.files.images) {
         productData.images = req.files.images.map(file => file.path);
-        console.log('✅ Additional images:', productData.images);
       }
     }
     
@@ -151,20 +74,13 @@ router.post('/', uploadProductImages, async (req, res) => {
     const product = new Product(productData);
     await product.save();
     
-    console.log('✅ Product created:', product._id);
-    
-    const obj = product.toObject ? product.toObject() : { ...product };
     res.status(201).json({
       success: true,
-      product: {
-        ...obj,
-        image: getCleanImage(obj.image),
-        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
-      },
+      product: product,
       message: 'Product created successfully'
     });
   } catch (error) {
-    console.error('❌ Error creating product:', error);
+    console.error('Error creating product:', error);
     res.status(400).json({
       success: false,
       message: error.message
@@ -176,7 +92,6 @@ router.post('/', uploadProductImages, async (req, res) => {
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productId = req.params.id;
-    console.log('📦 Updating product:', productId);
     
     const existingProduct = await Product.findById(productId);
     if (!existingProduct) {
@@ -217,7 +132,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         updateData.image = req.files.image[0].path;
-        console.log('✅ New main image:', updateData.image);
       }
       if (req.files.images) {
         const existingImages = existingProduct.images || [];
@@ -226,28 +140,19 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    console.log('📝 Updating with:', JSON.stringify(updateData, null, 2));
-    
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       { $set: updateData },
       { new: true, runValidators: true }
     );
     
-    console.log('✅ Product updated:', updatedProduct._id);
-    
-    const obj = updatedProduct.toObject ? updatedProduct.toObject() : { ...updatedProduct };
     res.json({
       success: true,
-      product: {
-        ...obj,
-        image: getCleanImage(obj.image),
-        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
-      },
+      product: updatedProduct,
       message: 'Product updated successfully'
     });
   } catch (error) {
-    console.error('❌ Error updating product:', error);
+    console.error('Error updating product:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -258,26 +163,19 @@ router.put('/:id', uploadProductImages, async (req, res) => {
 // DELETE product
 router.delete('/:id', async (req, res) => {
   try {
-    const productId = req.params.id;
-    console.log('📦 Deleting product:', productId);
-    
-    const product = await Product.findByIdAndDelete(productId);
-    
+    const product = await Product.findByIdAndDelete(req.params.id);
     if (!product) {
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
-    
-    console.log('✅ Product deleted:', product.name);
-    
     res.json({
       success: true,
       message: 'Product deleted successfully'
     });
   } catch (error) {
-    console.error('❌ Error deleting product:', error);
+    console.error('Error deleting product:', error);
     res.status(500).json({
       success: false,
       message: error.message

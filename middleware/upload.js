@@ -5,23 +5,18 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configure Cloudinary
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'yy8file8k',
   api_key: process.env.CLOUDINARY_API_KEY || '256931673873252',
   api_secret: process.env.CLOUDINARY_API_SECRET || 'NPLveGtaK54rCUtE0nRvqk5gpic'
 });
 
-// Configure Cloudinary storage
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
     folder: 'fizzys-products',
     allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'gif'],
-    transformation: [
-      { width: 800, height: 1000, crop: 'limit' },
-      { quality: 'auto' }
-    ]
+    transformation: [{ width: 800, height: 1000, crop: 'limit' }]
   }
 });
 
