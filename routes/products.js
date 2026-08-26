@@ -4,34 +4,16 @@ import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
-// Helper function for fallback images
-const getImageUrl = (imagePath) => {
-  if (!imagePath) {
-    return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
-  }
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    return imagePath;
-  }
-  return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
-};
-
 // GET all products
 router.get('/', async (req, res) => {
   try {
     console.log('📦 Fetching all products...');
     const products = await Product.find().sort({ createdAt: -1 });
-    
-    const productsWithImages = products.map(product => ({
-      ...product.toObject(),
-      image: getImageUrl(product.image),
-      images: product.images ? product.images.map(img => getImageUrl(img)) : []
-    }));
-    
-    console.log('✅ Products fetched:', productsWithImages.length);
+    console.log('✅ Products fetched:', products.length);
     
     res.json({
       success: true,
-      products: productsWithImages
+      products: products
     });
   } catch (error) {
     console.error('❌ Error fetching products:', error);
@@ -42,25 +24,16 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product with better error handling
+// GET single product - Simplified
 router.get('/:id', async (req, res) => {
   try {
     const productId = req.params.id;
     console.log('📦 Fetching product:', productId);
     
-    // Check if ID is valid
-    if (!productId || productId.length !== 24) {
-      console.log('❌ Invalid product ID format:', productId);
-      return res.status(400).json({
-        success: false,
-        message: 'Invalid product ID format'
-      });
-    }
-    
     const product = await Product.findById(productId);
     
     if (!product) {
-      console.log('❌ Product not found:', productId);
+      console.log('❌ Product not found');
       return res.status(404).json({
         success: false,
         message: 'Product not found'
@@ -69,13 +42,10 @@ router.get('/:id', async (req, res) => {
     
     console.log('✅ Product found:', product.name);
     
+    // ✅ Send the product directly
     res.json({
       success: true,
-      product: {
-        ...product.toObject(),
-        image: getImageUrl(product.image),
-        images: product.images ? product.images.map(img => getImageUrl(img)) : []
-      }
+      product: product
     });
   } catch (error) {
     console.error('❌ Error fetching product:', error);
@@ -127,11 +97,7 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     res.status(201).json({
       success: true,
-      product: {
-        ...product.toObject(),
-        image: getImageUrl(product.image),
-        images: product.images ? product.images.map(img => getImageUrl(img)) : []
-      },
+      product: product,
       message: 'Product created successfully'
     });
   } catch (error) {
@@ -146,10 +112,10 @@ router.post('/', uploadProductImages, async (req, res) => {
 // PUT - Update product
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
-    console.log('📦 Updating product:', req.params.id);
+    const productId = req.params.id;
+    console.log('📦 Updating product:', productId);
     
-    // Find the product first
-    const existingProduct = await Product.findById(req.params.id);
+    const existingProduct = await Product.findById(productId);
     if (!existingProduct) {
       return res.status(404).json({
         success: false,
@@ -158,8 +124,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     }
     
     const productData = req.body;
-    
-    // Build update object
     const updateData = {};
     
     // String fields
@@ -167,17 +131,17 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
     
-    // Handle image uploads from Cloudinary
+    // Handle image uploads
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         updateData.image = req.files.image[0].path;
-        console.log('✅ New main image uploaded:', updateData.image);
+        console.log('✅ New main image:', updateData.image);
       }
       if (req.files.images) {
         const existingImages = existingProduct.images || [];
         const newImages = req.files.images.map(file => file.path);
         updateData.images = [...existingImages, ...newImages].slice(0, 3);
-        console.log('✅ Additional images uploaded:', updateData.images);
+        console.log('✅ Updated images:', updateData.images);
       }
     }
     
@@ -206,29 +170,24 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    console.log('📝 Update data:', JSON.stringify(updateData, null, 2));
-    
-    // Update the product
     const updatedProduct = await Product.findByIdAndUpdate(
-      req.params.id,
+      productId,
       { $set: updateData },
       { new: true, runValidators: true }
     );
     
+    console.log('✅ Product updated:', updatedProduct._id);
+    
     res.json({
       success: true,
-      product: {
-        ...updatedProduct.toObject(),
-        image: getImageUrl(updatedProduct.image),
-        images: updatedProduct.images ? updatedProduct.images.map(img => getImageUrl(img)) : []
-      },
+      product: updatedProduct,
       message: 'Product updated successfully'
     });
   } catch (error) {
     console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Server error'
     });
   }
 });
@@ -236,7 +195,10 @@ router.put('/:id', uploadProductImages, async (req, res) => {
 // DELETE product
 router.delete('/:id', async (req, res) => {
   try {
-    const product = await Product.findByIdAndDelete(req.params.id);
+    const productId = req.params.id;
+    console.log('📦 Deleting product:', productId);
+    
+    const product = await Product.findByIdAndDelete(productId);
     
     if (!product) {
       return res.status(404).json({
@@ -244,6 +206,8 @@ router.delete('/:id', async (req, res) => {
         message: 'Product not found'
       });
     }
+    
+    console.log('✅ Product deleted:', product.name);
     
     res.json({
       success: true,
