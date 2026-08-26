@@ -88,9 +88,11 @@ router.post('/', uploadProductImages, async (req, res) => {
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         productData.image = req.files.image[0].path;
+        console.log('✅ Main image:', productData.image);
       }
       if (req.files.images) {
         productData.images = req.files.images.map(file => file.path);
+        console.log('✅ Additional images:', productData.images);
       }
     }
     
@@ -102,6 +104,8 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     const product = new Product(productData);
     await product.save();
+    
+    console.log('✅ Product created:', product._id);
     
     res.status(201).json({
       success: true,
@@ -121,14 +125,10 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// ============================================
-// ✅ FIXED PUT - Update product
-// ============================================
-router.put('/:id', async (req, res) => {
+// PUT - Update product with image upload
+router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Updating product:', req.params.id);
-    
-    const productData = req.body;
     
     // Find the product first
     const existingProduct = await Product.findById(req.params.id);
@@ -139,14 +139,29 @@ router.put('/:id', async (req, res) => {
       });
     }
     
-    // Build update object with only valid fields
+    const productData = req.body;
+    
+    // Build update object
     const updateData = {};
     
     // String fields
     if (productData.name !== undefined) updateData.name = productData.name;
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
-    if (productData.image !== undefined) updateData.image = productData.image;
+    
+    // ✅ Handle image uploads from Cloudinary
+    if (req.files) {
+      if (req.files.image && req.files.image[0]) {
+        updateData.image = req.files.image[0].path;
+        console.log('✅ New main image uploaded:', updateData.image);
+      }
+      if (req.files.images) {
+        const existingImages = existingProduct.images || [];
+        const newImages = req.files.images.map(file => file.path);
+        updateData.images = [...existingImages, ...newImages].slice(0, 3);
+        console.log('✅ Additional images uploaded:', updateData.images);
+      }
+    }
     
     // Number fields
     if (productData.price !== undefined) updateData.price = Number(productData.price);
@@ -160,7 +175,7 @@ router.put('/:id', async (req, res) => {
       updateData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     }
     
-    // Sizes - ensure it's an array
+    // Sizes
     if (productData.sizes !== undefined) {
       if (typeof productData.sizes === 'string') {
         try {
@@ -170,19 +185,6 @@ router.put('/:id', async (req, res) => {
         }
       } else if (Array.isArray(productData.sizes)) {
         updateData.sizes = productData.sizes;
-      }
-    }
-    
-    // Images - ensure it's an array
-    if (productData.images !== undefined) {
-      if (typeof productData.images === 'string') {
-        try {
-          updateData.images = JSON.parse(productData.images);
-        } catch (e) {
-          updateData.images = [];
-        }
-      } else if (Array.isArray(productData.images)) {
-        updateData.images = productData.images;
       }
     }
     
