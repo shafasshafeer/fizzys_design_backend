@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product - Simplified
+// GET single product
 router.get('/:id', async (req, res) => {
   try {
     const productId = req.params.id;
@@ -33,7 +33,6 @@ router.get('/:id', async (req, res) => {
     const product = await Product.findById(productId);
     
     if (!product) {
-      console.log('❌ Product not found');
       return res.status(404).json({
         success: false,
         message: 'Product not found'
@@ -42,7 +41,6 @@ router.get('/:id', async (req, res) => {
     
     console.log('✅ Product found:', product.name);
     
-    // ✅ Send the product directly
     res.json({
       success: true,
       product: product
@@ -51,7 +49,7 @@ router.get('/:id', async (req, res) => {
     console.error('❌ Error fetching product:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message
     });
   }
 });
@@ -63,7 +61,6 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     const productData = req.body;
     
-    // Parse sizes
     if (typeof productData.sizes === 'string') {
       try {
         productData.sizes = JSON.parse(productData.sizes);
@@ -72,7 +69,6 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Get Cloudinary URLs
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         productData.image = req.files.image[0].path;
@@ -84,7 +80,6 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Parse numbers
     productData.price = Number(productData.price) || 0;
     productData.stock = Number(productData.stock) || 0;
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
@@ -109,7 +104,7 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT - Update product
+// PUT - Update product with Cloudinary
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productId = req.params.id;
@@ -130,20 +125,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     if (productData.name !== undefined) updateData.name = productData.name;
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
-    
-    // Handle image uploads
-    if (req.files) {
-      if (req.files.image && req.files.image[0]) {
-        updateData.image = req.files.image[0].path;
-        console.log('✅ New main image:', updateData.image);
-      }
-      if (req.files.images) {
-        const existingImages = existingProduct.images || [];
-        const newImages = req.files.images.map(file => file.path);
-        updateData.images = [...existingImages, ...newImages].slice(0, 3);
-        console.log('✅ Updated images:', updateData.images);
-      }
-    }
     
     // Number fields
     if (productData.price !== undefined) updateData.price = Number(productData.price);
@@ -170,6 +151,21 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
+    // Handle image uploads
+    if (req.files) {
+      if (req.files.image && req.files.image[0]) {
+        updateData.image = req.files.image[0].path;
+        console.log('✅ New main image:', updateData.image);
+      }
+      if (req.files.images) {
+        const existingImages = existingProduct.images || [];
+        const newImages = req.files.images.map(file => file.path);
+        updateData.images = [...existingImages, ...newImages].slice(0, 3);
+      }
+    }
+    
+    console.log('📝 Updating with:', JSON.stringify(updateData, null, 2));
+    
     const updatedProduct = await Product.findByIdAndUpdate(
       productId,
       { $set: updateData },
@@ -187,7 +183,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
-      message: error.message || 'Server error'
+      message: error.message
     });
   }
 });
