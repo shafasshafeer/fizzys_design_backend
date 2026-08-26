@@ -129,52 +129,60 @@ router.post('/', uploadProductImages, async (req, res) => {
 });
 
 // PUT - Update product
+// PUT - Update product (with better error handling)
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Updating product:', req.params.id);
-    console.log('Body:', req.body);
-    console.log('Files:', req.files);
+    console.log('Received body:', JSON.stringify(req.body, null, 2));
     
     const productData = req.body;
     
-    // Parse sizes
-    if (typeof productData.sizes === 'string') {
-      try {
-        productData.sizes = JSON.parse(productData.sizes);
-      } catch (e) {
-        productData.sizes = [];
+    // ✅ Clean the data - remove undefined/null values
+    const cleanData = {};
+    
+    // Only include fields that are actually provided
+    if (productData.name) cleanData.name = productData.name;
+    if (productData.price) cleanData.price = Number(productData.price);
+    if (productData.description) cleanData.description = productData.description;
+    if (productData.category) cleanData.category = productData.category;
+    if (productData.stock !== undefined) cleanData.stock = Number(productData.stock);
+    if (productData.isNew !== undefined) cleanData.isNew = productData.isNew === 'true' || productData.isNew === true;
+    if (productData.isBestseller !== undefined) cleanData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
+    
+    // Handle sizes
+    if (productData.sizes) {
+      if (typeof productData.sizes === 'string') {
+        try {
+          cleanData.sizes = JSON.parse(productData.sizes);
+        } catch (e) {
+          cleanData.sizes = [];
+        }
+      } else if (Array.isArray(productData.sizes)) {
+        cleanData.sizes = productData.sizes;
       }
     }
     
-    // Get Cloudinary URLs for new images
+    // Handle image uploads
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        productData.image = req.files.image[0].path;
-        console.log('✅ New main image:', productData.image);
+        cleanData.image = req.files.image[0].path;
+        console.log('✅ New main image:', cleanData.image);
       }
       if (req.files.images) {
         const existingProduct = await Product.findById(req.params.id);
         const existingImages = existingProduct?.images || [];
         const newImages = req.files.images.map(file => file.path);
-        productData.images = [...existingImages, ...newImages].slice(0, 3);
-        console.log('✅ Updated images:', productData.images);
+        cleanData.images = [...existingImages, ...newImages].slice(0, 3);
+        console.log('✅ Updated images:', cleanData.images);
       }
     }
     
-    // Parse numbers
-    if (productData.price) productData.price = Number(productData.price);
-    if (productData.stock) productData.stock = Number(productData.stock);
-    productData.isNew = productData.isNew === 'true' || productData.isNew === true;
-    productData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
+    console.log('Clean data to update:', JSON.stringify(cleanData, null, 2));
     
-    // Remove protected fields
-    delete productData._id;
-    delete productData.createdAt;
-    delete productData.__v;
-    
+    // Update the product
     const product = await Product.findByIdAndUpdate(
       req.params.id,
-      productData,
+      { $set: cleanData },
       { new: true, runValidators: true }
     );
     
@@ -189,18 +197,15 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     
     res.json({
       success: true,
-      product: {
-        ...product.toObject(),
-        image: getImageUrl(product.image),
-        images: product.images ? product.images.map(img => getImageUrl(img)) : []
-      },
+      product,
       message: 'Product updated successfully'
     });
   } catch (error) {
     console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
+      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
     });
   }
 });
