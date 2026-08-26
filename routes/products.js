@@ -18,6 +18,7 @@ const getImageUrl = (imagePath) => {
 // GET all products
 router.get('/', async (req, res) => {
   try {
+    console.log('📦 Fetching all products...');
     const products = await Product.find().sort({ createdAt: -1 });
     
     const productsWithImages = products.map(product => ({
@@ -25,6 +26,8 @@ router.get('/', async (req, res) => {
       image: getImageUrl(product.image),
       images: product.images ? product.images.map(img => getImageUrl(img)) : []
     }));
+    
+    console.log('✅ Products fetched:', productsWithImages.length);
     
     res.json({
       success: true,
@@ -39,17 +42,32 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product
+// GET single product with better error handling
 router.get('/:id', async (req, res) => {
   try {
-    const product = await Product.findById(req.params.id);
+    const productId = req.params.id;
+    console.log('📦 Fetching product:', productId);
+    
+    // Check if ID is valid
+    if (!productId || productId.length !== 24) {
+      console.log('❌ Invalid product ID format:', productId);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
+    
+    const product = await Product.findById(productId);
     
     if (!product) {
+      console.log('❌ Product not found:', productId);
       return res.status(404).json({
         success: false,
         message: 'Product not found'
       });
     }
+    
+    console.log('✅ Product found:', product.name);
     
     res.json({
       success: true,
@@ -63,7 +81,7 @@ router.get('/:id', async (req, res) => {
     console.error('❌ Error fetching product:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Server error'
     });
   }
 });
@@ -125,7 +143,7 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT - Update product with image upload
+// PUT - Update product
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Updating product:', req.params.id);
@@ -149,7 +167,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
     
-    // ✅ Handle image uploads from Cloudinary
+    // Handle image uploads from Cloudinary
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         updateData.image = req.files.image[0].path;
