@@ -16,9 +16,7 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-// ============================================
-// ✅ SIMPLE CORS - ALLOW ALL
-// ============================================
+// ✅ CORS - Allow all for testing
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
@@ -30,6 +28,7 @@ app.options('*', cors());
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ extended: true, limit: '50mb' }));
 
+// Serve static files
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Routes
@@ -43,6 +42,15 @@ app.get('/api/health', (req, res) => {
     status: 'OK',
     message: 'Fizzys Designs API is running',
     timestamp: new Date().toISOString()
+  });
+});
+
+// Global error handler
+app.use((err, req, res, next) => {
+  console.error('❌ Global error:', err);
+  res.status(500).json({
+    success: false,
+    message: err.message || 'Internal Server Error'
   });
 });
 

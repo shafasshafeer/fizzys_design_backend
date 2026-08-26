@@ -18,17 +18,8 @@ const getImageUrl = (imagePath) => {
 // GET all products
 router.get('/', async (req, res) => {
   try {
-    const { limit = 20, page = 1, sort = '-createdAt', category, isNew, isBestseller } = req.query;
-    
-    const filter = {};
-    if (category) filter.category = category;
-    if (isNew === 'true') filter.isNew = true;
-    if (isBestseller === 'true') filter.isBestseller = true;
-    
-    const products = await Product.find(filter)
-      .sort(sort)
-      .limit(parseInt(limit))
-      .skip((parseInt(page) - 1) * parseInt(limit));
+    console.log('📦 Fetching all products...');
+    const products = await Product.find().sort({ createdAt: -1 });
     
     const productsWithImages = products.map(product => ({
       ...product.toObject(),
@@ -36,20 +27,12 @@ router.get('/', async (req, res) => {
       images: product.images ? product.images.map(img => getImageUrl(img)) : []
     }));
     
-    const total = await Product.countDocuments(filter);
-    
     res.json({
       success: true,
-      products: productsWithImages,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        pages: Math.ceil(total / parseInt(limit))
-      }
+      products: productsWithImages
     });
   } catch (error) {
-    console.error('GET products error:', error);
+    console.error('❌ Error fetching products:', error);
     res.status(500).json({ 
       success: false, 
       message: error.message 
@@ -69,18 +52,16 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    const productWithImages = {
-      ...product.toObject(),
-      image: getImageUrl(product.image),
-      images: product.images ? product.images.map(img => getImageUrl(img)) : []
-    };
-    
     res.json({
       success: true,
-      product: productWithImages
+      product: {
+        ...product.toObject(),
+        image: getImageUrl(product.image),
+        images: product.images ? product.images.map(img => getImageUrl(img)) : []
+      }
     });
   } catch (error) {
-    console.error('GET product error:', error);
+    console.error('❌ Error fetching product:', error);
     res.status(500).json({
       success: false,
       message: error.message
@@ -88,10 +69,12 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST - Create product with Cloudinary
+// POST - Create product
 router.post('/', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Creating product...');
+    console.log('Body:', req.body);
+    console.log('Files:', req.files);
     
     const productData = req.body;
     
@@ -117,8 +100,8 @@ router.post('/', uploadProductImages, async (req, res) => {
     }
     
     // Parse numbers
-    productData.price = Number(productData.price);
-    productData.stock = Number(productData.stock);
+    productData.price = Number(productData.price) || 0;
+    productData.stock = Number(productData.stock) || 0;
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
     productData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     
@@ -129,7 +112,11 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     res.status(201).json({
       success: true,
-      product,
+      product: {
+        ...product.toObject(),
+        image: getImageUrl(product.image),
+        images: product.images ? product.images.map(img => getImageUrl(img)) : []
+      },
       message: 'Product created successfully'
     });
   } catch (error) {
@@ -141,14 +128,16 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT - Update product with Cloudinary
+// PUT - Update product
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Updating product:', req.params.id);
+    console.log('Body:', req.body);
+    console.log('Files:', req.files);
     
     const productData = req.body;
     
-    // Parse sizes if sent as string
+    // Parse sizes
     if (typeof productData.sizes === 'string') {
       try {
         productData.sizes = JSON.parse(productData.sizes);
@@ -157,7 +146,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Handle Cloudinary image uploads
+    // Get Cloudinary URLs for new images
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         productData.image = req.files.image[0].path;
@@ -172,13 +161,13 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Parse numbers safely
+    // Parse numbers
     if (productData.price) productData.price = Number(productData.price);
     if (productData.stock) productData.stock = Number(productData.stock);
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
     productData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     
-    // Remove fields that shouldn't be updated
+    // Remove protected fields
     delete productData._id;
     delete productData.createdAt;
     delete productData.__v;
@@ -200,15 +189,18 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     
     res.json({
       success: true,
-      product,
+      product: {
+        ...product.toObject(),
+        image: getImageUrl(product.image),
+        images: product.images ? product.images.map(img => getImageUrl(img)) : []
+      },
       message: 'Product updated successfully'
     });
   } catch (error) {
     console.error('❌ Error updating product:', error);
     res.status(500).json({
       success: false,
-      message: error.message,
-      stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+      message: error.message
     });
   }
 });
