@@ -9,12 +9,13 @@ const getImageUrl = (imagePath) => {
   if (!imagePath) {
     return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
   }
+  // If it's a Cloudinary URL or any http/https URL
   if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
     return imagePath;
   }
-  // For local uploads, return as-is (if they exist on server)
+  // For local uploads, use fallback
   if (imagePath.startsWith('/uploads')) {
-    return imagePath;
+    return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
   }
   return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
 };
@@ -34,7 +35,6 @@ router.get('/', async (req, res) => {
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
     
-    // ✅ Add fallback images for each product
     const productsWithImages = products.map(product => ({
       ...product.toObject(),
       image: getImageUrl(product.image),
@@ -73,7 +73,6 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    // ✅ Add fallback images
     const productWithImages = {
       ...product.toObject(),
       image: getImageUrl(product.image),
@@ -92,7 +91,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST create product with images
+// ============================================
+// ✅ POST create product with Cloudinary images
+// ============================================
 router.post('/', uploadProductImages, async (req, res) => {
   try {
     const productData = req.body;
@@ -101,13 +102,14 @@ router.post('/', uploadProductImages, async (req, res) => {
       productData.sizes = JSON.parse(productData.sizes);
     }
     
+    // ✅ Cloudinary URLs
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        productData.image = `/uploads/${req.files.image[0].filename}`;
+        productData.image = req.files.image[0].path; // Cloudinary URL
         console.log('✅ Main image saved:', productData.image);
       }
       if (req.files.images) {
-        productData.images = req.files.images.map(file => `/uploads/${file.filename}`);
+        productData.images = req.files.images.map(file => file.path);
         console.log('✅ Additional images saved:', productData.images);
       }
     }
@@ -134,7 +136,9 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT update product
+// ============================================
+// ✅ PUT update product with Cloudinary images
+// ============================================
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productData = req.body;
@@ -143,14 +147,15 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       productData.sizes = JSON.parse(productData.sizes);
     }
     
+    // ✅ Cloudinary URLs for new images
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        productData.image = `/uploads/${req.files.image[0].filename}`;
+        productData.image = req.files.image[0].path;
       }
       if (req.files.images) {
         const existingProduct = await Product.findById(req.params.id);
         const existingImages = existingProduct?.images || [];
-        const newImages = req.files.images.map(file => `/uploads/${file.filename}`);
+        const newImages = req.files.images.map(file => file.path);
         productData.images = [...existingImages, ...newImages].slice(0, 3);
       }
     }

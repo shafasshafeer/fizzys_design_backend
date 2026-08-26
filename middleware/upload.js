@@ -25,7 +25,6 @@ const storage = new CloudinaryStorage({
   }
 });
 
-// File filter
 const fileFilter = (req, file, cb) => {
   const allowedTypes = ['image/jpeg', 'image/png', 'image/jpg', 'image/webp', 'image/gif'];
   if (allowedTypes.includes(file.mimetype)) {
@@ -35,21 +34,15 @@ const fileFilter = (req, file, cb) => {
   }
 };
 
-// Multer configuration
 const upload = multer({
   storage: storage,
-  limits: {
-    fileSize: 5 * 1024 * 1024 // 5MB limit
-  },
+  limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: fileFilter
 });
 
-// Upload multiple files (max 4 - 1 main + 3 additional)
 export const uploadProductImages = upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'images', maxCount: 3 }
 ]);
-
-export const uploadSingle = upload.single('image');
 
 export default upload;
