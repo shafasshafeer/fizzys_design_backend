@@ -9,19 +9,17 @@ const FALLBACK_IMAGE = 'https://images.unsplash.com/photo-1566174053879-31528523
 
 // Helper to clean image URLs
 const getCleanImage = (imagePath) => {
-  if (!imagePath) return FALLBACK_IMAGE;
-  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-    // If it's a Cloudinary URL, keep it
-    if (imagePath.includes('cloudinary') || imagePath.includes('unsplash')) {
+  try {
+    if (!imagePath) return FALLBACK_IMAGE;
+    if (typeof imagePath !== 'string') return FALLBACK_IMAGE;
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
     return FALLBACK_IMAGE;
-  }
-  // Any local path (/uploads/...) - use fallback
-  if (imagePath.startsWith('/uploads')) {
+  } catch (error) {
+    console.error('Error in getCleanImage:', error);
     return FALLBACK_IMAGE;
   }
-  return FALLBACK_IMAGE;
 };
 
 // GET all products
@@ -30,14 +28,18 @@ router.get('/', async (req, res) => {
     console.log('📦 Fetching all products...');
     const products = await Product.find().sort({ createdAt: -1 });
     
-    // Clean images for all products
     const cleanProducts = products.map(product => {
-      const obj = product.toObject();
-      return {
-        ...obj,
-        image: getCleanImage(obj.image),
-        images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
-      };
+      try {
+        const obj = product.toObject ? product.toObject() : product;
+        return {
+          ...obj,
+          image: getCleanImage(obj.image),
+          images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+        };
+      } catch (err) {
+        console.error('Error processing product:', err);
+        return product;
+      }
     });
     
     console.log('✅ Products fetched:', cleanProducts.length);
@@ -55,13 +57,23 @@ router.get('/', async (req, res) => {
   }
 });
 
-// GET single product
+// GET single product - with full debugging
 router.get('/:id', async (req, res) => {
   try {
     const productId = req.params.id;
-    console.log('📦 Fetching product:', productId);
+    console.log('📦 Fetching product ID:', productId);
+    
+    // Validate ID format
+    if (!productId || productId.length !== 24) {
+      console.log('❌ Invalid ID format:', productId);
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid product ID format'
+      });
+    }
     
     const product = await Product.findById(productId);
+    console.log('🔍 Product found:', product ? 'YES' : 'NO');
     
     if (!product) {
       return res.status(404).json({
@@ -70,24 +82,37 @@ router.get('/:id', async (req, res) => {
       });
     }
     
-    const obj = product.toObject();
+    console.log('✅ Product name:', product.name);
+    console.log('✅ Product image:', product.image);
+    
+    // Convert to object safely
+    let productObj;
+    try {
+      productObj = product.toObject ? product.toObject() : { ...product };
+    } catch (err) {
+      console.error('Error converting to object:', err);
+      productObj = { ...product._doc };
+    }
+    
     const cleanProduct = {
-      ...obj,
-      image: getCleanImage(obj.image),
-      images: Array.isArray(obj.images) ? obj.images.map(img => getCleanImage(img)) : []
+      ...productObj,
+      image: getCleanImage(productObj.image),
+      images: Array.isArray(productObj.images) ? productObj.images.map(img => getCleanImage(img)) : []
     };
     
-    console.log('✅ Product found:', product.name);
+    console.log('✅ Sending clean product');
     
     res.json({
       success: true,
       product: cleanProduct
     });
   } catch (error) {
-    console.error('❌ Error fetching product:', error);
+    console.error('❌ Error in GET /:id:', error);
+    console.error('❌ Error message:', error.message);
+    console.error('❌ Error stack:', error.stack);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message || 'Server error'
     });
   }
 });
@@ -128,7 +153,7 @@ router.post('/', uploadProductImages, async (req, res) => {
     
     console.log('✅ Product created:', product._id);
     
-    const obj = product.toObject();
+    const obj = product.toObject ? product.toObject() : { ...product };
     res.status(201).json({
       success: true,
       product: {
@@ -164,16 +189,12 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     const productData = req.body;
     const updateData = {};
     
-    // String fields
     if (productData.name !== undefined) updateData.name = productData.name;
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
-    
-    // Number fields
     if (productData.price !== undefined) updateData.price = Number(productData.price);
     if (productData.stock !== undefined) updateData.stock = Number(productData.stock);
     
-    // Boolean fields
     if (productData.isNew !== undefined) {
       updateData.isNew = productData.isNew === 'true' || productData.isNew === true;
     }
@@ -181,7 +202,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       updateData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     }
     
-    // Sizes
     if (productData.sizes !== undefined) {
       if (typeof productData.sizes === 'string') {
         try {
@@ -194,7 +214,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Handle image uploads
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
         updateData.image = req.files.image[0].path;
@@ -217,7 +236,7 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     
     console.log('✅ Product updated:', updatedProduct._id);
     
-    const obj = updatedProduct.toObject();
+    const obj = updatedProduct.toObject ? updatedProduct.toObject() : { ...updatedProduct };
     res.json({
       success: true,
       product: {
