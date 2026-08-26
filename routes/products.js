@@ -4,6 +4,21 @@ import { uploadProductImages } from '../middleware/upload.js';
 
 const router = express.Router();
 
+// Helper function to get image URL with fallback
+const getImageUrl = (imagePath) => {
+  if (!imagePath) {
+    return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
+  }
+  if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+    return imagePath;
+  }
+  // For local uploads, return as-is (if they exist on server)
+  if (imagePath.startsWith('/uploads')) {
+    return imagePath;
+  }
+  return 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
+};
+
 // GET all products
 router.get('/', async (req, res) => {
   try {
@@ -19,11 +34,18 @@ router.get('/', async (req, res) => {
       .limit(parseInt(limit))
       .skip((parseInt(page) - 1) * parseInt(limit));
     
+    // ✅ Add fallback images for each product
+    const productsWithImages = products.map(product => ({
+      ...product.toObject(),
+      image: getImageUrl(product.image),
+      images: product.images ? product.images.map(img => getImageUrl(img)) : []
+    }));
+    
     const total = await Product.countDocuments(filter);
     
     res.json({
       success: true,
-      products,
+      products: productsWithImages,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -51,9 +73,16 @@ router.get('/:id', async (req, res) => {
       });
     }
     
+    // ✅ Add fallback images
+    const productWithImages = {
+      ...product.toObject(),
+      image: getImageUrl(product.image),
+      images: product.images ? product.images.map(img => getImageUrl(img)) : []
+    };
+    
     res.json({
       success: true,
-      product
+      product: productWithImages
     });
   } catch (error) {
     res.status(500).json({
@@ -68,15 +97,12 @@ router.post('/', uploadProductImages, async (req, res) => {
   try {
     const productData = req.body;
     
-    // Parse sizes if sent as string
     if (typeof productData.sizes === 'string') {
       productData.sizes = JSON.parse(productData.sizes);
     }
     
-    // ✅ Add uploaded image URLs with full path
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        // Store as /uploads/filename.jpg
         productData.image = `/uploads/${req.files.image[0].filename}`;
         console.log('✅ Main image saved:', productData.image);
       }
@@ -86,7 +112,6 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Parse price and stock
     productData.price = Number(productData.price);
     productData.stock = Number(productData.stock);
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
