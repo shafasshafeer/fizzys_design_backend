@@ -44,7 +44,9 @@ router.get('/:id', async (req, res) => {
   }
 });
 
-// POST - Create product
+// ============================================
+// ✅ POST - Create product with Cloudinary
+// ============================================
 router.post('/', uploadProductImages, async (req, res) => {
   try {
     console.log('📦 Creating product...');
@@ -60,15 +62,15 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
-    // Handle file uploads
+    // ✅ Cloudinary URLs (NOT local paths)
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        productData.image = `/uploads/${req.files.image[0].filename}`;
-        console.log('✅ Main image:', productData.image);
+        productData.image = req.files.image[0].path; // Cloudinary URL
+        console.log('✅ Main image (Cloudinary):', productData.image);
       }
       if (req.files.images) {
-        productData.images = req.files.images.map(file => `/uploads/${file.filename}`);
-        console.log('✅ Additional images:', productData.images);
+        productData.images = req.files.images.map(file => file.path);
+        console.log('✅ Additional images (Cloudinary):', productData.images);
       }
     }
     
@@ -97,7 +99,9 @@ router.post('/', uploadProductImages, async (req, res) => {
   }
 });
 
-// PUT - Update product
+// ============================================
+// ✅ PUT - Update product with Cloudinary
+// ============================================
 router.put('/:id', uploadProductImages, async (req, res) => {
   try {
     const productId = req.params.id;
@@ -139,15 +143,17 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
+    // ✅ Cloudinary URLs for new images
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        updateData.image = `/uploads/${req.files.image[0].filename}`;
-        console.log('✅ New main image:', updateData.image);
+        updateData.image = req.files.image[0].path; // Cloudinary URL
+        console.log('✅ New main image (Cloudinary):', updateData.image);
       }
       if (req.files.images) {
         const existingImages = existingProduct.images || [];
-        const newImages = req.files.images.map(file => `/uploads/${file.filename}`);
+        const newImages = req.files.images.map(file => file.path);
         updateData.images = [...existingImages, ...newImages].slice(0, 3);
+        console.log('✅ Updated images (Cloudinary):', updateData.images);
       }
     }
     
