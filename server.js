@@ -5,9 +5,11 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import { v2 as cloudinary } from 'cloudinary';
+import multer from 'multer'; // ✅ ADD THIS IMPORT
 import productRoutes from './routes/products.js';
 import orderRoutes from './routes/orders.js';
 import adminRoutes from './routes/admin.js';
+import fs from 'fs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -37,7 +39,6 @@ const testCloudinary = async () => {
   } catch (error) {
     console.error('❌ Cloudinary connection failed:', error.message);
     console.warn('⚠️ Cloudinary will not work. Please check your credentials.');
-    console.warn('   CLOUDINARY_CLOUD_NAME:', process.env.CLOUDINARY_CLOUD_NAME || 'yy8file8k');
     return false;
   }
 };
@@ -69,7 +70,6 @@ const uploadsDir = path.join(__dirname, 'uploads');
 console.log(`📁 Uploads directory: ${uploadsDir}`);
 
 // Create uploads directory if it doesn't exist
-import fs from 'fs';
 if (!fs.existsSync(uploadsDir)) {
   fs.mkdirSync(uploadsDir, { recursive: true });
   console.log('📁 Created uploads directory');
@@ -121,7 +121,7 @@ app.use((req, res) => {
 });
 
 // ============================================
-// ✅ Global Error Handler
+// ✅ Global Error Handler - FIXED
 // ============================================
 app.use((err, req, res, next) => {
   console.error('❌ Global error handler caught:');
@@ -154,7 +154,7 @@ app.use((err, req, res, next) => {
     });
   }
   
-  // Multer other errors
+  // ✅ Multer error - NOW WORKS because multer is imported
   if (err instanceof multer.MulterError) {
     console.error('❌ Multer error:', err.code, err.message);
     return res.status(400).json({
@@ -203,7 +203,6 @@ app.use((err, req, res, next) => {
 const MONGODB_URI = process.env.MONGODB_URI || 'mongodb://localhost:27017/fizzys_designs';
 
 console.log('🔌 Connecting to MongoDB...');
-console.log(`📦 MONGODB_URI: ${MONGODB_URI.replace(/\/\/([^:]+):([^@]+)@/, '//***:***@')}`);
 
 mongoose.connect(MONGODB_URI)
   .then(() => {
