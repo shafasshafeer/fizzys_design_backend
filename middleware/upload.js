@@ -5,14 +5,14 @@ import dotenv from 'dotenv';
 
 dotenv.config();
 
-// Configure Cloudinary
+console.log('☁️ Configuring Cloudinary upload middleware...');
+
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'yy8file8k',
   api_key: process.env.CLOUDINARY_API_KEY || '256931673873252',
   api_secret: process.env.CLOUDINARY_API_SECRET || 'NPLveGtaK54rCUtE0nRvqk5gpic'
 });
 
-// Cloudinary Storage
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
@@ -44,5 +44,7 @@ export const uploadProductImages = upload.fields([
   { name: 'image', maxCount: 1 },
   { name: 'images', maxCount: 3 }
 ]);
+
+console.log('✅ Cloudinary upload middleware configured');
 
 export default upload;
