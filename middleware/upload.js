@@ -7,8 +7,9 @@ dotenv.config();
 
 console.log('☁️ Configuring Cloudinary upload middleware...');
 
+// ✅ FIXED: Use correct cloud name (yy8fle8k not yy8file8k)
 cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'yy8file8k',
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || 'yy8fle8k',  // ✅ Fixed typo
   api_key: process.env.CLOUDINARY_API_KEY || '256931673873252',
   api_secret: process.env.CLOUDINARY_API_SECRET || 'NPLveGtaK54rCUtE0nRvqk5gpic'
 });
@@ -19,8 +20,9 @@ const storage = new CloudinaryStorage({
     folder: 'fizzys-products',
     allowed_formats: ['jpg', 'png', 'jpeg', 'webp', 'gif'],
     transformation: [
-      { width: 800, height: 1000, crop: 'limit' },
-      { quality: 'auto' }
+      { width: 400, height: 500, crop: 'limit' },  // ✅ SMALLER size (was 800x1000)
+      { quality: 'auto:low' },  // ✅ Lower quality for faster loading
+      { fetch_format: 'auto' }  // ✅ Auto format (WebP for modern browsers)
     ]
   }
 });
@@ -46,5 +48,6 @@ export const uploadProductImages = upload.fields([
 ]);
 
 console.log('✅ Cloudinary upload middleware configured');
+console.log('📸 Image optimization: 400x500, auto:low quality, auto format');
 
 export default upload;
