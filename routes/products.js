@@ -58,7 +58,6 @@ router.post('/', uploadProductImages, async (req, res) => {
     console.log('📋 Request body:', req.body);
     console.log('📁 Files received:', req.files ? 'Yes' : 'No');
     
-    // If files exist, log them
     if (req.files) {
       if (req.files.image) {
         console.log('📸 Main image file:', req.files.image[0].originalname);
@@ -84,10 +83,45 @@ router.post('/', uploadProductImages, async (req, res) => {
       }
     }
     
-    // ✅ Handle images - use Cloudinary URLs or fallback
+    // ✅ NEW: Parse sizeStock
+    if (productData.sizeStock) {
+      try {
+        const stockData = typeof productData.sizeStock === 'string' 
+          ? JSON.parse(productData.sizeStock) 
+          : productData.sizeStock;
+        
+        // Convert to Map for storage
+        const stockMap = new Map();
+        let totalStock = 0;
+        
+        for (const [size, count] of Object.entries(stockData)) {
+          const numCount = parseInt(count) || 0;
+          stockMap.set(size, numCount);
+          totalStock += numCount;
+        }
+        
+        productData.sizeStock = stockMap;
+        productData.stock = totalStock; // Auto-calculate total
+        console.log('✅ Size stock:', Object.fromEntries(stockMap));
+        console.log('✅ Total stock:', totalStock);
+      } catch (e) {
+        console.log('⚠️ Failed to parse sizeStock:', e.message);
+        productData.sizeStock = new Map();
+      }
+    } else if (productData.sizes && productData.sizes.length > 0) {
+      // Initialize sizeStock with 0 for all sizes if not provided
+      const stockMap = new Map();
+      productData.sizes.forEach(size => {
+        stockMap.set(size, 0);
+      });
+      productData.sizeStock = stockMap;
+      productData.stock = 0;
+    }
+    
+    // Handle images - use Cloudinary URLs or fallback
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        productData.image = req.files.image[0].path; // Cloudinary URL
+        productData.image = req.files.image[0].path;
         console.log('✅ Main image saved:', productData.image);
       }
       if (req.files.images) {
@@ -95,14 +129,12 @@ router.post('/', uploadProductImages, async (req, res) => {
         console.log('✅ Additional images saved:', productData.images);
       }
     } else {
-      // No image uploaded - use fallback
       productData.image = 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=400&h=500&fit=crop';
       console.log('⚠️ No image uploaded, using fallback');
     }
     
     // Parse numbers and booleans
     productData.price = Number(productData.price) || 0;
-    productData.stock = Number(productData.stock) || 0;
     productData.isNew = productData.isNew === 'true' || productData.isNew === true;
     productData.isBestseller = productData.isBestseller === 'true' || productData.isBestseller === true;
     
@@ -122,7 +154,6 @@ router.post('/', uploadProductImages, async (req, res) => {
     console.error('   Message:', error.message);
     console.error('   Stack:', error.stack);
     
-    // Check if it's a Cloudinary error
     if (error.message && error.message.includes('Cloudinary')) {
       return res.status(500).json({
         success: false,
@@ -131,7 +162,6 @@ router.post('/', uploadProductImages, async (req, res) => {
       });
     }
     
-    // Check for validation errors
     if (error.name === 'ValidationError') {
       const errors = Object.values(error.errors).map(e => e.message);
       return res.status(400).json({
@@ -141,7 +171,6 @@ router.post('/', uploadProductImages, async (req, res) => {
       });
     }
     
-    // Check for duplicate key error
     if (error.code === 11000) {
       return res.status(400).json({
         success: false,
@@ -183,7 +212,6 @@ router.put('/:id', uploadProductImages, async (req, res) => {
     if (productData.description !== undefined) updateData.description = productData.description;
     if (productData.category !== undefined) updateData.category = productData.category;
     if (productData.price !== undefined) updateData.price = Number(productData.price);
-    if (productData.stock !== undefined) updateData.stock = Number(productData.stock);
     
     if (productData.isNew !== undefined) {
       updateData.isNew = productData.isNew === 'true' || productData.isNew === true;
@@ -204,14 +232,39 @@ router.put('/:id', uploadProductImages, async (req, res) => {
       }
     }
     
-    // ✅ Handle images - only update if new files are uploaded
+    // ✅ NEW: Handle sizeStock update
+    if (productData.sizeStock) {
+      try {
+        const stockData = typeof productData.sizeStock === 'string' 
+          ? JSON.parse(productData.sizeStock) 
+          : productData.sizeStock;
+        
+        // Convert to Map
+        const stockMap = new Map();
+        let totalStock = 0;
+        
+        for (const [size, count] of Object.entries(stockData)) {
+          const numCount = parseInt(count) || 0;
+          stockMap.set(size, numCount);
+          totalStock += numCount;
+        }
+        
+        updateData.sizeStock = stockMap;
+        updateData.stock = totalStock;
+        console.log('✅ Updated size stock:', Object.fromEntries(stockMap));
+        console.log('✅ Updated total stock:', totalStock);
+      } catch (e) {
+        console.log('⚠️ Failed to parse sizeStock:', e.message);
+      }
+    }
+    
+    // Handle images - only update if new files are uploaded
     if (req.files) {
       if (req.files.image && req.files.image[0]) {
-        updateData.image = req.files.image[0].path; // Cloudinary URL
+        updateData.image = req.files.image[0].path;
         console.log('✅ New main image saved:', updateData.image);
       }
       if (req.files.images) {
-        // Keep existing images and add new ones (max 3)
         const existingImages = existingProduct.images || [];
         const newImages = req.files.images.map(file => file.path);
         updateData.images = [...existingImages, ...newImages].slice(0, 3);
